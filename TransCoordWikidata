@@ -1,0 +1,99 @@
+#! /usr/bin/php -q
+<?php
+require_once ("BotWData.php");
+require_once ("Botwiki.php");
+/*  =======================================================
+                 Datos para el login
+    =========================================================*/
+$user = "USER"
+$password = "PASSWORD"
+
+/*  =======================================================
+                 Colores
+    =========================================================*/
+$colorVerde = "\033[1;32m";
+$colorRojo = "\033[1;31m";
+$colorBlancoB = "\033[1;37m";
+$colorTurquesa = "\033[1;36m";
+$finColor = "\033[0m";
+/*  =======================================================
+                 Archivos externos
+    =========================================================*/
+$base = "/data/project/mg-bot";
+/*  =======================================================
+                 Objetos
+    =========================================================*/
+$botWdata = new BotWData;
+$botWiki = new Botwiki;
+$lista = $botWiki->listCat("Wikipedia:Artículos por trasladar coordenadas a Wikidata");
+$todos = false;
+/*  =======================================================
+                 Programa
+    =========================================================*/
+system("clear"); //Limpiamos pantalla
+$botWiki->login($user,$password);
+$botWdata->login($user,$password);
+
+for($k = 0; $k < count($lista); $k++){
+    $paginaEncontrada = $botWiki->getArticulo($lista[$k]);
+    $pagina = $paginaEncontrada["query"]["pages"][key($paginaEncontrada["query"]["pages"])]["title"];
+    echo "\r\n <<\033[1;35m {$pagina}\033[0m >> \r\n\n";
+	$id = $botWdata->getID($pagina);
+	if (preg_match("/Q\d+/",$id)== 1){
+	   echo "{$colorVerde} Tiene elemento en Wikidata.{$finColor}\r\n Id de la página: {$colorBlancoB}{$id}{$finColor}\r\n";
+	} else {
+	    $crear = "n";
+		$todosCrear = false;
+	    echo "{$colorRojo} No tiene elemento en Wikidata{$finColor}{$colorBlancoB} ¿Crear?{$finColor}{$colorTurquesa} (s-sí/n-no/t-todos/c-cerrar){$finColor}: ";
+		$crear = trim(fgets(STDIN));
+		if (($crear == "s")||($crear == "t")||($todosCrear)){
+		    $botWdata->addEntidad($pagina);
+			$id = $botWdata->getID($pagina);
+		    if ($crear == "t"){	
+			    $todosCrear = true;
+			}
+		} elseif ($crear == "n"){
+		    continue;
+		} else {
+		    break;
+		}
+	}
+	$existe = $botWdata->isClain($id,'P625');
+	if ($existe) {
+	    echo "{$colorRojo} Ya existe la propiedad{$finColor}\r\n";
+        continue;		
+	} else {
+	    echo "{$colorVerde} Propiedad libre{$finColor}\r\n";
+	}
+	$coord = $botWiki->getCoord($pagina);
+    $latitud = $coord['lat'];
+    $longitud = $coord['lon'];
+	if (($latitud != "")&&($longitud != "")){ 
+	    echo " * latitud:{$colorBlancoB} {$latitud} {$finColor}\r\n";
+        echo " * longitud:{$colorBlancoB} {$longitud} {$finColor}\r\n";
+	} else {
+	    echo "{$colorRojo} La página no tiene coordenadas en título{$finColor}\r\n";
+		continue;
+	}
+	
+    echo "\r\n\033[1;37m ¿Desea crear la declaración?\033[1;36m (s-sí/n-no/t-todos/c-cerrar)\033[0m: ";
+	$confirmacion = trim(fgets(STDIN));
+	if (($confirmacion == "s") || ($todos) ){
+	    echo " Realizando cambios\r\n";
+        $botWdata->addClain(
+	        $id,"P625",'{"latitude":'.$latitud.',"longitude":'.$longitud.',"globe":"http://www.wikidata.org/entity/Q2","precision":0.000001}'
+	    );
+    } else if ($confirmacion == "n") { 
+        echo " Cancelado caso\r\n";
+    } else if ($confirmacion == "c"){
+	    echo " Cancelado todos\r\n";
+	    return;
+	} else if ($confirmacion == "t"){
+	    echo " Realizando cambios\r\n";
+	    $botWdata->addClain(
+	        $id,"P625",'{"latitude":'.$latitud.',"longitude":'.$longitud.',"globe":"http://www.wikidata.org/entity/Q2","precision":0.000001}'
+	    );
+	    $todos = true;
+    }
+	//sleep(60);
+}
