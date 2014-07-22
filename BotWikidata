@@ -1,0 +1,218 @@
+#! /usr/bin/php -q
+<?php
+require_once('Snoopy.class.php');
+
+class BotWData {
+    public $snoopy;
+	
+	/************************************************************************************************************************
+	* Constructor de objetos de la clase BotWData
+	*
+	*************************************************************************************************************************/
+    public function BotWData(){
+        $this->snoopy = new Snoopy; // Objeto de la clase Snoopy
+	}
+	
+	/************************************************************************************************************************
+	* Método para el login en Wikidata
+	*
+	*************************************************************************************************************************/
+    public function login($usuario, $contrasenna) {
+        $request_vars = array('action' => 'login', 'lgname' => $usuario, 
+	                          'lgpassword' => $contrasenna, 'format' => 'php'
+							  );
+						  
+	if(!$this->snoopy->submit("http://www.wikidata.org/w/api.php", $request_vars)) 
+	        die("Snoopy error: {$this->snoopy->error}");
+		
+		$this->snoopy->setcookies(); 
+		$array_ = unserialize($this->snoopy->results); // Guardamos lo que nos devuelve la API en un array en $array_
+	    $request_vars = array('action' => 'login', 'lgname' => $usuario, 
+	                           'lgpassword' => $contrasenna,'lgtoken'=>$array_['login']['token'].'', 'format' => 'php');
+	    if(!$this->snoopy->submit("http://www.wikidata.org/w/api.php", $request_vars)){ 
+	        die("Snoopy error: {$this->snoopy->error}");
+		}
+		$this->snoopy->setcookies();
+		
+		$array_ = unserialize($this->snoopy->results);
+		//var_dump($array_); // Nos dice todo lo que nos ha devuelto wikipedia
+		if($array_["login"]["result"]== "Success") {
+	        echo "\033[1;32m Iniciada sesión en Wikidata. \033[0m\r\n";	
+        } else {
+	        echo "\033[1;31m Error de inicio de sesión en Wikidata. \033[0m\r\n";
+        }
+		$this->snoopy->setcookies(); // Es imprescindible para realizar las acciones con el usuario del bot.	
+	}
+
+    /************************************************************************************************************************
+	* Método para obtener el token de una edicion 
+	*
+	*************************************************************************************************************************/
+	public function getToken($pagID){
+	    $request_vars = array( 'prop' => 'info', 'titles' => $pagID, 'intoken' => 'edit','format' => 'php');
+        $this->snoopy->submit("http://www.wikidata.org/w/api.php?action=query",$request_vars);
+        
+	    $array_ = unserialize($this->snoopy->results);
+		$token = $array_["query"]["pages"][key($array_["query"]["pages"])]["edittoken"];
+		
+		if($array_["query"]["pages"][key($array_["query"]["pages"])]["contentmodel"]== "wikibase-item") { // Comprobamos que existe el artículo
+		    //echo "\r\n Página {$pagID} encontrada. Token: {$token} \r\n";
+		} else {
+		    echo "\r\n Página no encontrada \r\n";
+		}
+		//var_dump($array_);
+		
+		return $token;	//Nos devuelve el token de la edición
+	}
+	/************************************************************************************************************************
+	* Método para obtener el id de Wikidata a partir del título de es:Wikipedia
+	*
+	*************************************************************************************************************************/	
+	public function getID($titulo){
+	    $request_vars = array('sites' => 'eswiki','titles' => $titulo,'props' => 'info', 'maxlag' => '5','format' => 'php');
+	    $this->snoopy->submit("http://www.wikidata.org/w/api.php?action=wbgetentities",$request_vars);
+	    $datos = unserialize($this->snoopy->results);
+	    //var_dump($datos);
+		$id = $datos["entities"][key($datos["entities"])]["title"];
+		return $id;
+	}
+	/************************************************************************************************************************
+	* Método para comprobar el valor de una declaración a un elemento de Wikidata
+	*
+	*************************************************************************************************************************/	
+	public function getClain($pagID, $propiedad){
+	    $request_vars = array( 'entity'=> $pagID, 'property' => $propiedad, 'maxlag' => '5', 'format' => 'php');
+	    $this->snoopy->submit("http://www.wikidata.org/w/api.php?action=wbgetclaims",$request_vars);
+		$array_ = unserialize($this->snoopy->results);
+		$valor = $array_["claims"][$propiedad][0]["mainsnak"] ["datavalue"]["value"];
+		return $valor;
+	}
+	
+	/************************************************************************************************************************
+	* Método para comprobar si exite una declaración en un elemento de Wikidata
+	*
+	*************************************************************************************************************************/	
+	public function isClain($pagID, $propiedad){
+	$request_vars = array( 'entity'=> $pagID, 'property' => $propiedad,'maxlag' => '5','format' => 'php');
+	    $this->snoopy->submit("http://www.wikidata.org/w/api.php?action=wbgetclaims",$request_vars);
+		$array_ = unserialize($this->snoopy->results);
+		//var_dump($array_); //Imprimimos los valores
+		if($array_["claims"][$propiedad][0]["mainsnak"]["property"] == $propiedad){
+		return true;
+		} else {
+		return false;
+		}
+	}
+	
+	/************************************************************************************************************************
+	* Método para  añadir una referencia a una declaración de un elemento de Wikidata
+	*
+	*************************************************************************************************************************/	
+
+    public function addReferencia($statement, $token){
+
+	    $request_vars = array(
+		'statement'=> $statement, 'snaks' =>'{"P143":[{"snaktype":"value","property":"P143","datatype":"wikibase-item","datavalue":{"value":{"entity-type":"item","numeric-id":8449},"type":"wikibase-entityid"}}]}','token' => $token,'maxlag' => '5', 'format' => 'php');
+
+        $this->snoopy->submit("http://www.wikidata.org/w/api.php?action=wbsetreference",$request_vars);
+        
+		$array_ = unserialize($this->snoopy->results); //Creamos array con los valores de la edición
+		//var_dump($array_); //Imprimimos los valores
+		
+		//   -- Comprobamos que la edición se ha realizado --
+		
+        if($array_["success"] == 1) {
+	        echo "\033[1;32m Referencia creada \033[0m\r\n";	
+        } else {
+	        echo "\033[1;31m Referencia no creada \033[0m\r\n";	
+        }
+	}
+
+	
+    /************************************************************************************************************************
+	* Método para  añadir una declaración a un elemento de Wikidata
+	*
+	*************************************************************************************************************************/	
+	public function addClain($pagID, $propiedad, $valor){
+	    $token = $this->getToken($pagID); // Obtenemos el token de edición del elemento
+        echo $token;
+	    $request_vars = array(
+		    'entity' => $pagID, 'property' => $propiedad,'token'=> $token, 'snaktype' => 'value','value' => $valor,'maxlag' => '5', 'format' => 'php'
+		);
+		
+        $this->snoopy->submit("http://www.wikidata.org/w/api.php?action=wbcreateclaim",$request_vars);       
+		$datos = unserialize($this->snoopy->results); //Creamos array con los valores de la edición
+		//var_dump($datos); //Imprimimos los valores
+		
+		$statement = $datos["claim"]["id"];
+		//$this->addReferencia($statement, $propReferencia, $referencia, $token);
+		$this->addReferencia($statement, $token);
+		//   -- Comprobamos que la edición se ha realizado --
+		
+        if($datos["success"] == 1) {
+	        echo "\033[1;32m Creada propiedad coordenadas (p625) \033[0m\r\n";	
+        } else {
+	        echo "\033[1;31m Error al crear la propiedad coordenadas (p625)\033[0m\r\n";			
+        }
+	}
+	/************************************************************************************************************************
+	* Método para  añadir la etiqueta en español a un elemento de Wikidata
+	*
+	*************************************************************************************************************************/	
+	public function addLabel($pagID, $etiqueta){
+	    $token = $this->getToken($pagID); // Obtenemos el token de edición del elemento
+        echo $token;
+	    $request_vars = array(
+		    'id' => $pagID, 'language' => 'es','token'=> $token,'value' => $etiqueta,'maxlag' => '5', 'format' => 'php'
+		);
+		
+        $this->snoopy->submit("http://www.wikidata.org/w/api.php?action=wbsetlabel",$request_vars); 
+		https://www.wikidata.org/w/api.php?action=wbsetlabel&id=Q42&language=en&value=Wikimedia&format=jsonfm
+		$datos = unserialize($this->snoopy->results); //Creamos array con los valores de la edición
+		var_dump($datos); //Imprimimos los valores
+		
+		//$statement = $datos["claim"]["id"];
+		
+		//   -- Comprobamos que la edición se ha realizado --
+		
+        if($datos["success"] == 1) {
+	        echo "\033[1;32m Creada etiqueta \033[0m\r\n";	
+        } else {
+	        echo "\033[1;31m Error al crear la etiqueta\033[0m\r\n";			
+        }
+	}
+
+
+	/************************************************************************************************************************
+	* Método para  crear un nuevo elemento añadir la etiqueta y enlacee en español
+	*
+	*************************************************************************************************************************/	
+	public function addEntidad($pagina){
+	    $token = $this->getToken("new_item"); // Obtenemos el token de edición del elemento
+        //echo $token;
+		$etiqueta = $pagina;
+		$etiquetas = array('es'=> array('language'=>'es', 'value'=> $etiqueta),'en'=> array('language'=>'en', 'value'=> $etiqueta));
+		$valores = array('labels'=>$etiquetas, 'sitelinks' => array('eswiki'=> array('site'=> 'eswiki','title'=> $pagina)));
+		//$valores = '{"labels":{"es":{"language":"es","value":'.$etiqueta.'},"en":{"language":"en","value":'.$etiqueta.'}}}';
+		//,{"sitelinks":{"eswiki":{"site":"eswiki","title":'.$pagina.'}}}';
+		$valoresJson = json_encode($valores);
+		//echo $valoresJson;
+	    $request_vars = array(
+		    'new' => 'item', 'data' => $valoresJson,'token'=> $token,'maxlag' => '5', 'format' => 'php'
+		);
+		
+        $this->snoopy->submit("http://www.wikidata.org/w/api.php?action=wbeditentity",$request_vars); 
+		$datos = unserialize($this->snoopy->results); //Creamos array con los valores de la edición
+		//var_dump($datos); //Imprimimos los valores		
+		
+		//   -- Comprobamos que la edición se ha realizado --o
+		
+        if($datos["success"] == 1) {
+	        echo "\033[1;32m Elemento creado \033[0m\r\n";	
+        } else {
+	        echo "\033[1;31m Error al crear elemento\033[0m\r\n";			
+        }
+	}
+}
+
+?>
