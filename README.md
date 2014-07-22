@@ -9,7 +9,8 @@ El bot se compone de dos clases: BotWikidata y Botwiki. la primera cuenta con m�
 
 Progresivamento iré introducciendo módulos para tal efecto por lo pronto he añadido:
 
-* TransCoordWikidata. 
+* TransCoordWikidata.
+Primero añade tu nombre de usuario y contraseña sustiuyendo el valor de la variable correspondiente.
 Este módulo se le tiene que dar una categoría que contenga una lista de artículos para trasladar sus coordenadas a Wikidata.
 un for hace iteraciones con las páginas de la categoría. Primero comprueba que la página tiene elemento enlazado en Wikidata. Si la respuesta es negativa pregunta sobre si debe crearlo y espera confirmación. Al confirmar creará el elemento con el título de la página y el enlace a la wikipedia en español.
 El paso siguiente es comprobar si el artículo tiene coordenadas en geoData de ser negativa la respuesta pasará a la siguiente iteración y si es positiva comprobará si el elemento de Wikidata tiene coordenadas (propieda p625) con valor. Si la respuesta es positiva pasará a la siguiente iteración y si es negativa preguntará si crea la decalración esperando respuesta de confirmación y al confirmar (s) creará la declaración con los valores que ha importado de geoData.
