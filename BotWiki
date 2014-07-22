@@ -1,0 +1,240 @@
+#! /usr/bin/php -q
+<?php
+require_once('Snoopy.class.php');
+
+class Botwiki {
+    public  $snoopy;
+	
+	/************************************************************************************************************************
+	* Constructor de objetos de la clase Botwiki
+	*
+	*************************************************************************************************************************/
+    public function Botwiki(){
+        $this->snoopy = new Snoopy; // Objeto de la clase Snoopy
+	}
+	
+	/************************************************************************************************************************
+	* Método para el login en Wikipdia
+	*
+	*************************************************************************************************************************/
+    public function login($usuario, $contrasenna) {
+        $request_vars = array('action' => 'login', 'lgname' => $usuario, 
+	                          'lgpassword' => $contrasenna, 'format' => 'php'
+							  );
+	    if(!$this->snoopy->submit("http://es.wikipedia.org/w/api.php", $request_vars)) 
+	        die("Snoopy error: {$this->snoopy->error}");
+		
+		$this->snoopy->setcookies(); 
+		$array_ = unserialize($this->snoopy->results); // Guardamos lo que nos devuelve la API en un array en $array_
+	    $request_vars = array('action' => 'login', 'lgname' => $usuario, 
+	                           'lgpassword' => $contrasenna,'lgtoken'=>$array_['login']['token'].'', 'format' => 'php');
+	    if(!$this->snoopy->submit("http://es.wikipedia.org/w/api.php", $request_vars)) 
+	        die("Snoopy error: {$snoopy->error}");
+		$this->snoopy->setcookies();
+		$array_ = unserialize($this->snoopy->results);
+		//var_dump($array_); // Nos dice todo lo que nos ha devuelto wikipedia
+		$this->snoopy->setcookies(); // Es imprescindible para realizar las acciones con el usuario del bot.
+		if($array_["login"]["result"]== "Success") {
+	        echo "\033[1;32m Iniciada sesión en es:Wikipedia \033[0m\r\n";	
+        } else {
+	        echo "\033[1;31m Error de inicio de sesión en es:Wikipedia\033[0m\r\n";
+        }
+    }
+	
+	/************************************************************************************************************************
+	* Método para leer un artículo de Wikipedia
+	*
+	*************************************************************************************************************************/
+	public function getArticulo($articulo) {
+	    $request_vars = array('titles' => $articulo,'format' => 'php','rvprop' => 'content');
+        $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query&prop=revisions",$request_vars);
+        $array_=unserialize($this->snoopy->results);
+        if(isset($array_["query"]["pages"][-1]["missing"])) { //Comprobamos que existe el artículo
+            echo $array_["query"]["pages"][key($array_["query"]["pages"])]["revisions"][0]["*"];
+		}
+		return $array_;
+	}
+	
+	/************************************************************************************************************************
+	* Método para editar un artículo Wikipdia
+	*
+	*************************************************************************************************************************/
+	function setArticulo($articulo,$texto, $resumen){
+        $request_vars = array('titles' => $articulo,'format' => 'php','rvprop' => 'content');
+        $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query&prop=revisions",$request_vars);
+        $array_ = unserialize($this->snoopy->results);
+        if(isset($array_["query"]["pages"][-1]["missing"])) { // Comprobamos que existe el artículo
+            //echo $array_["query"]["pages"][key($array_["query"]["pages"])]["revisions"][0]["*"];
+		}
+        $request_vars = array('action' => 'query', 'prop' => 'info', 
+                               'intoken' => 'edit','titles' => $articulo,'format' => 'php');
+        if(!$this->snoopy->submit("http://es.wikipedia.org/w/api.php", $request_vars)) {
+            die("Snoopy error: {$this->snoopy->error}");
+		}
+        $array_ = unserialize($this->snoopy->results);
+
+        $vars['token'] =$array_["query"]["pages"][key($array_["query"]["pages"])]["edittoken"];
+        $vars['basetimestamp'] = $array_["query"]["pages"][key($array_["query"]["pages"])]["touched"];
+        $vars['format'] = 'php';
+        $vars['action']='edit';
+        $vars['minor']='1';
+        $vars['bot']='1';
+ 
+	    $vars['title'] = $articulo;
+	    $vars['summary'] = $resumen;
+	    $vars['text'] =  $texto;
+
+        if(!$this->snoopy->submit("http://es.wikipedia.org/w/api.php",$vars)) {
+	        die("Snoopy error: {$snoopy->error}");
+		}
+        $array_ = unserialize($this->snoopy->results);
+        //var_dump($array_); // Nos dice todo lo que nos ha devuelto Wikipedia
+        if($array_["edit"]["result"]=="Success") {
+	        echo "\033[1;32m EDICIÓN CORRECTA \033[0m\r\n";	
+        } else {
+	        echo "\033[1;31m EDICION ERRONEA \033[0m\r\n";
+        }
+    }
+	
+	/************************************************************************************************************************
+	* Método para listar artículos que tienen una imagen determinada
+	*
+	*************************************************************************************************************************/
+    public function listImagen($file) {
+	    $request_vars = array('iutitle' => $file,'format' => 'php', 'prop' => 'info');
+        $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query&list=imageusage",$request_vars);
+        $array_ = unserialize($this->snoopy->results);
+        echo $array_; 
+    }
+	
+	/************************************************************************************************************************
+	* Método para listar artículos que tienen una categoría
+	*
+	*************************************************************************************************************************/
+    public function listCat($cat) {
+	    $request_vars = array('gcmtitle' => 'Category:'.$cat,'format' => 'php','gcmlimit' => '5000');
+        $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query&generator=categorymembers",$request_vars);
+        $array_ = unserialize($this->snoopy->results);
+		$lista = $array_['query']['pages'];
+		$k = 0;
+		foreach($lista as $valor){
+		    if (!$valor['ns'] == '14'){//Se omiten subcategorías
+		        $listCat[$k] = $valor['title'];
+		        $k++;
+			}
+		}
+        return $listCat; 
+    }
+	
+	/************************************************************************************************************************
+	* Método para listar artículos que tienen una plantilla determinada
+	*
+	*************************************************************************************************************************/
+    public function listplantilla($plantilla) {
+	    $request_vars = array('geititle' => 'Template:'.$plantilla,'format' => 'php', 'prop' => 'info');
+        $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query&generator=embeddedin",$request_vars);
+        $array_ = unserialize($this->snoopy->results);
+        echo $array_['query']['pages']; 
+    }
+	
+	/************************************************************************************************************************
+	* Método para listar artículos que tienen una URL determinada
+	*
+	*************************************************************************************************************************/
+    public function getImage($URL) {
+	    $request_vars = array('euquery' => $URL,'format' => 'php', 'prop' => 'info');
+        $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query&list=exturlusage",$request_vars);
+        $array_ = unserialize($this->snoopy->results);
+        echo $array_; 
+    }
+	/************************************************************************************************************************
+	* Método para purgar artículos
+	*
+	*************************************************************************************************************************/
+    public function purgar($pagina) {
+	    $request_vars = array('titles' => $pagina,'format' => 'php');
+		
+        $this->snoopy->submit("https://es.wikipedia.org/w/api.php?action=purge",$request_vars);
+        $array_ = unserialize($this->snoopy->results);
+        print_r( $array_); 
+    }
+	/************************************************************************************************************************
+	* Método para obtener coordenadas
+	*
+	*************************************************************************************************************************/
+    public function getCoord($pagina) {
+	    $request_vars = array('prop' => 'coordinates', 'titles' => $pagina,'format' => 'php');
+		
+        $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query",$request_vars);
+        $array_ = unserialize($this->snoopy->results);
+		$coord = $array_['query']['pages'][key($array_['query']['pages'])]['coordinates'][0];
+        //print_r( $coord); 
+		return $coord;
+    }
+
+	/************************************************************************************************************************
+	* Método para capturar una plantilla y pasarla a un array
+	*
+	*************************************************************************************************************************/
+    public function getPlantillaInArray($pagina,$plantilla) {
+	     
+	    $paginaEncontrada = $this->getArticulo($pagina); //Cargamos en una variable el cóntenido de la página como un solo string
+		$contenidoPagina1 = $paginaEncontrada["query"]["pages"][key($paginaEncontrada["query"]["pages"])]["revisions"][0]["*"];
+		$contenidoPagina = preg_replace("/.*\{\{\s*".$plantilla."\s*\|?\s*(.*)/s","$1",$contenidoPagina1);
+		//echo $contenidoPagina;
+		
+		
+		$indice = 0;
+		if (preg_match("/.*\{\{\s*".$plantilla."\s*\|?\s*(.*)/s",$contenidoPagina1)== 1){
+		    $cont = 2;
+		}else{
+		    $cont = 0;
+			echo "\033[1;31m Plantilla $plantilla no encontrada en la página $pagina \033[0m\r\n";
+			return;
+		}
+		$enlace = false;
+		$plantillaCapturada1 = array();
+		
+		do{
+		  if($contenidoPagina[$indice] == "{") {
+		      $cont++;
+		  } elseif($contenidoPagina[$indice] == "}") {
+		      $cont--;
+		  } elseif($contenidoPagina[$indice] == "[") {
+		      $enlace = true;
+		  } elseif($contenidoPagina[$indice] == "]") {
+		      $enlace = false;
+		  }
+          if((($cont <= 1)||($enlace)) && ($contenidoPagina[$indice] == "}")){
+		      $plantillaCapturada1[$indice] = "";
+		  } elseif((($cont >= 3)||($enlace)) && ($contenidoPagina[$indice] == "|")){
+		      $plantillaCapturada1[$indice] = "&@"; 
+		  } else {
+		      $plantillaCapturada1[$indice] = $contenidoPagina[$indice];
+		  }
+		  $indice++;
+		} while($cont != 0);
+		
+		$plantillaCapturada = implode($plantillaCapturada1);
+		$parametros = explode('|',$plantillaCapturada);
+		//print_r($parametros);
+		$cont = 1;
+		for($k=0; $k < count($parametros); $k++){
+		    if (strstr($parametros[$k],"=") !== false){
+		        $partes = explode("=",$parametros[$k]);
+		        $clave = trim($partes[0]);
+		        $valor = str_replace("&@","|",trim($partes[1]));
+			} else {
+			   $clave = $cont;
+			   $valor = $parametros[$k];
+			   $cont++;
+			}
+			if ($valor != ""){
+		        $arrayPlantilla[$clave] = $valor;
+			}
+		}
+		print_r($arrayPlantilla);
+		//return $arrayPlantilla;
+    }
+}
+?>
