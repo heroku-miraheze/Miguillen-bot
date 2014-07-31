@@ -4,7 +4,18 @@ require_once('Snoopy.class.php');
 
 class Botwiki {
     public  $snoopy;
-	
+/*  =======================================================
+                 Colores
+    =========================================================*/
+public $colorVerde = "\033[1;32m";
+public $colorRojo = "\033[1;31m";
+public $colorBlancoB = "\033[1;37m";
+public $colorTurquesa = "\033[1;36m";
+public $colorRosa = "\033[1;35m";
+public $colorMagenta = "\033[0;35m";
+public $colorAmarillo = "\033[1;33m";
+public $finColor = "\033[0m";
+
 	/************************************************************************************************************************
 	* Constructor de objetos de la clase Botwiki
 	*
@@ -46,7 +57,7 @@ class Botwiki {
 	*
 	*************************************************************************************************************************/
 	public function getArticulo($articulo) {
-	    $request_vars = array('titles' => $articulo,'format' => 'php','rvprop' => 'content');
+	    $request_vars = array('titles' => $articulo,'maxlag' => '5','format' => 'php','rvprop' => 'content');
         $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query&prop=revisions",$request_vars);
         $array_=unserialize($this->snoopy->results);
         if(isset($array_["query"]["pages"][-1]["missing"])) { //Comprobamos que existe el artículo
@@ -60,7 +71,11 @@ class Botwiki {
 	*
 	*************************************************************************************************************************/
 	function setArticulo($articulo,$texto, $resumen){
-        $request_vars = array('titles' => $articulo,'format' => 'php','rvprop' => 'content');
+	    if ($texto == "") { 
+		    echo $this->colorRojo." EDICION ERRONEA:".$this->finColor.$this->colorBlancoB." Falta texto para añadir".$this->finColor."\r\n";
+		    return false;
+		} 
+        $request_vars = array('titles' => $articulo, 'maxlag' => '5','format' => 'php','rvprop' => 'content');
         $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query&prop=revisions",$request_vars);
         $array_ = unserialize($this->snoopy->results);
         if(isset($array_["query"]["pages"][-1]["missing"])) { // Comprobamos que existe el artículo
@@ -90,18 +105,45 @@ class Botwiki {
         $array_ = unserialize($this->snoopy->results);
         //var_dump($array_); // Nos dice todo lo que nos ha devuelto Wikipedia
         if($array_["edit"]["result"]=="Success") {
-	        echo "\033[1;32m EDICIÓN CORRECTA \033[0m\r\n";	
+	        echo "\033[1;32m EDICIÓN CORRECTA \033[0m\r\n";
+            return true;			
         } else {
 	        echo "\033[1;31m EDICION ERRONEA \033[0m\r\n";
+			return false;
         }
     }
-	
+	/************************************************************************************************************************
+	* Método para comprobar un cambio
+	*
+	*************************************************************************************************************************/
+    public function getCambio($texto,$pagina) {
+	    $request_vars = array('prop' => 'revisions','titles' => $pagina, 'rvdifftotext' => $texto, 'maxlag' => '5', 'format' => 'php');
+        $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query",$request_vars);
+        $array_ = unserialize($this->snoopy->results);
+		$dif1 = $array_["query"]["pages"][key($array_["query"]["pages"])]["revisions"][0]["diff"]["*"];
+         //var_dump($array_);
+		$quitar = array('</tr>','<tr>','<td class="diff-marker">','&#160;','</td>','<td class="diff-addedline">','</del>','<div>','</div>','<td colspan="2" class="diff-empty">','<del class="diffchange diffchange-inline">','<td colspan="2" class="diff-lineno">','<td class="diff-context">');
+		
+		$cambiar = array(
+		'+ \r\n','- \r\n','<td class="diff-deletedline">','<ins class="diffchange diffchange-inline">','</ins>','<td class="diff-addedline">');
+		$cambio = array('+','-',$this->colorRosa,$this->colorVerde,$this->finColor,$this->finColor);
+        $dif2 = preg_replace('/.td class="diff-context"><div>.*<.div><.td>/','',$dif1);
+		
+        $dif3 = str_replace($quitar,"",$dif2);
+		$dif4 = str_replace($cambiar,$cambio,$dif3);
+		$dif5 = preg_replace('/\s*\n/','',$dif4);
+		$dif6 = str_replace(" −","\n".$this->finColor.$this->colorRojo."-".$this->finColor,$dif5);
+		$dif7 = str_replace(" +","\n".$this->finColor.$this->colorVerde."+".$this->finColor,$dif6);
+		$dif = preg_replace("/(Línea \d*):\s*Línea \d*:/","\n".$this->finColor.$this->colorBlancoB." == $1 == ",$dif7);
+		//echo $dif;
+     return $dif;	
+    }
 	/************************************************************************************************************************
 	* Método para listar artículos que tienen una imagen determinada
 	*
 	*************************************************************************************************************************/
     public function listImagen($file) {
-	    $request_vars = array('iutitle' => $file,'format' => 'php', 'prop' => 'info');
+	    $request_vars = array('iutitle' => $file, 'maxlag' => '5','format' => 'php', 'prop' => 'info');
         $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query&list=imageusage",$request_vars);
         $array_ = unserialize($this->snoopy->results);
         echo $array_; 
@@ -111,8 +153,8 @@ class Botwiki {
 	* Método para listar artículos que tienen una categoría
 	*
 	*************************************************************************************************************************/
-    public function listCat($cat) {
-	    $request_vars = array('gcmtitle' => 'Category:'.$cat,'format' => 'php','gcmlimit' => '5000');
+    public function listCat($cat, $continua) {
+	    $request_vars = array('gcmtitle' => 'Category:'.$cat, 'maxlag' => '5','format' => 'php','gcmlimit' => '60','gcmcontinue'=>$continua);
         $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query&generator=categorymembers",$request_vars);
         $array_ = unserialize($this->snoopy->results);
 		$lista = $array_['query']['pages'];
@@ -123,6 +165,12 @@ class Botwiki {
 		        $k++;
 			}
 		}
+		//print_r($array_);
+		if (array_key_exists('query-continue', $array_ )){
+		    $listCat['cont'] = $array_['query-continue']['categorymembers']['gcmcontinue'];
+		} else {
+		    $listCat['cont'] = false;
+		}
         return $listCat; 
     }
 	
@@ -130,11 +178,28 @@ class Botwiki {
 	* Método para listar artículos que tienen una plantilla determinada
 	*
 	*************************************************************************************************************************/
-    public function listplantilla($plantilla) {
-	    $request_vars = array('geititle' => 'Template:'.$plantilla,'format' => 'php', 'prop' => 'info');
+    public function listPlantilla($plantilla,$continua) {
+
+	    if ($continua != ""){
+	        $request_vars = array('geititle' => 'Template:'.$plantilla, 'maxlag' => '5','format' => 'php', 'prop' => 'info','geilimit' => '60','geicontinue'=> $continua);
+	    } else {
+		    $request_vars = array('geititle' => 'Template:'.$plantilla, 'maxlag' => '5','format' => 'php', 'prop' => 'info','geilimit' => '60');
+		}
         $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query&generator=embeddedin",$request_vars);
         $array_ = unserialize($this->snoopy->results);
-        echo $array_['query']['pages']; 
+		$lista = $array_['query']['pages'];
+		//unset($continua);
+		//$continua = $array_['query-continue']['embeddedin']['geicontinue'];
+		//print_r($continua."\r\n");
+		$k=0;
+		foreach($lista as $valor){
+		    if ($valor['ns'] == '0'){//Se omiten subcategorías
+		        $listP[$k] = $valor['title'];
+		        $k++;
+			}
+		}
+		$listP['cont'] = $array_['query-continue']['embeddedin']['geicontinue'];
+        return $listP; 
     }
 	
 	/************************************************************************************************************************
@@ -142,7 +207,7 @@ class Botwiki {
 	*
 	*************************************************************************************************************************/
     public function getImage($URL) {
-	    $request_vars = array('euquery' => $URL,'format' => 'php', 'prop' => 'info');
+	    $request_vars = array('euquery' => $URL, 'maxlag' => '5','format' => 'php', 'prop' => 'info');
         $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query&list=exturlusage",$request_vars);
         $array_ = unserialize($this->snoopy->results);
         echo $array_; 
@@ -152,7 +217,7 @@ class Botwiki {
 	*
 	*************************************************************************************************************************/
     public function purgar($pagina) {
-	    $request_vars = array('titles' => $pagina,'format' => 'php');
+	    $request_vars = array('titles' => $pagina, 'maxlag' => '5','format' => 'php');
 		
         $this->snoopy->submit("https://es.wikipedia.org/w/api.php?action=purge",$request_vars);
         $array_ = unserialize($this->snoopy->results);
@@ -163,78 +228,154 @@ class Botwiki {
 	*
 	*************************************************************************************************************************/
     public function getCoord($pagina) {
-	    $request_vars = array('prop' => 'coordinates', 'titles' => $pagina,'format' => 'php');
+	    $request_vars = array('prop' => 'coordinates', 'titles' => $pagina, 'maxlag' => '5','format' => 'php');
 		
         $this->snoopy->submit("http://es.wikipedia.org/w/api.php?action=query",$request_vars);
         $array_ = unserialize($this->snoopy->results);
-		$coord = $array_['query']['pages'][key($array_['query']['pages'])]['coordinates'][0];
+		if (array_key_exists("coordinates",$array_['query']['pages'][key($array_['query']['pages'])])){
+		   $coord = $array_['query']['pages'][key($array_['query']['pages'])]['coordinates'][0];   
+		} else {
+		    $coord = false;
+		}
+		
         //print_r( $coord); 
 		return $coord;
     }
+	/************************************************************************************************************************
+	* Método para capturar una plantilla en una página y devuelve un string con el código de la plantilla
+	*
+	*************************************************************************************************************************/
+    public function CapturarPlantilla($pagina,$plantilla) {
+	    $contenidoPagina = false;
+		$numero = 0;
+	    while(!$contenidoPagina){
+	         $paginaEncontrada = $this->getArticulo($pagina); //Cargamos en una variable el cóntenido de la página como un solo string
+			 $contenidoPagina = $paginaEncontrada["query"]["pages"][key($paginaEncontrada["query"]["pages"])]["revisions"][0]["*"];
+		}
+		
+		/* -- Comprobamos que la página contine la plantilla indicada. 
+		esto evita que se caiga en caso contrario en un bucle infinito -- */
+		if (!preg_match("/\{\{\s*".$plantilla.".*/is",$contenidoPagina)== 1){ 		
+
+			echo "\033[1;31m Plantilla $plantilla no encontrada en la página $pagina \033[0m\r\n";
+			return false;
+			
+		}
+		preg_match_all("/(\{\{\s*?".$plantilla.")/is",$contenidoPagina,$resultados);
+		//echo "Resultado encontrados: ".count($resultados[1])."\r\n";
+		$iteraciones = count($resultados[1]);
+		$plantillaCapturada1 = array();
+		
+		do{
+		    $contenidoPagina = preg_replace("/.*?(\{\{\s*".$plantilla.".*)/is","$1",$contenidoPagina);
+            $cont = 0;
+			$indice = 0;
+			$arrayPagina = str_split($contenidoPagina);
+			
+			try {
+				do {
+					/*if (!$arrayPagina[$indice]) {
+					    echo " Códigos de cierre erróneos en ".$indice." - cont: ".$cont." - ult car ".$arrayPagina[$indice-1]."\r\n";
+					    break;
+					} else*/
+					if($arrayPagina[$indice] == "{") {
+						$cont++;
+					} elseif($arrayPagina[$indice] == "}") {
+						$cont--;
+					}
+					$plantillaCapturada1[$indice] = $arrayPagina[$indice];
+					$indice++;
+				} while(($cont != 0)&&($indice < strlen($contenidoPagina)));;
+			} catch(Exception $e){
+			echo "Error ".$e;
+			return false;
+			}
+		    
+		    $plantillaCapturada = implode($plantillaCapturada1);
+			$arrayDevuelto[$numero] = $plantillaCapturada;
+			//echo $numero.") ".$plantillaCapturada."\r\n";
+			$contenidoPagina = str_replace($plantillaCapturada,"",$contenidoPagina);
+			$numero++;
+			unset($plantillaCapturada);
+			unset($plantillaCapturada1);
+		} while ($numero != $iteraciones);
+		//($indiceT < $tamanno);	
+		
+		//print_r($arrayDevuelto);
+		return $arrayDevuelto;
+		}
+	
 
 	/************************************************************************************************************************
 	* Método para capturar una plantilla y pasarla a un array
 	*
 	*************************************************************************************************************************/
-    public function getPlantillaInArray($pagina,$plantilla) {
-	     
-	    $paginaEncontrada = $this->getArticulo($pagina); //Cargamos en una variable el cóntenido de la página como un solo string
-		$contenidoPagina1 = $paginaEncontrada["query"]["pages"][key($paginaEncontrada["query"]["pages"])]["revisions"][0]["*"];
-		$contenidoPagina = preg_replace("/.*\{\{\s*".$plantilla."\s*\|?\s*(.*)/s","$1",$contenidoPagina1);
-		//echo $contenidoPagina;
-		
-		
-		$indice = 0;
-		if (preg_match("/.*\{\{\s*".$plantilla."\s*\|?\s*(.*)/s",$contenidoPagina1)== 1){
+    public function getPlantillaInArray($pagina,$plantilla,$limpiar) {
+	    $contenidoPagina = false;
+        $arrayDevuelto = array();
+		$plantillaCapturada = array();
+		$plantillaBuscada = $this->CapturarPlantilla($pagina,$plantilla);
+		if (!$plantillaBuscada) {
+		    return false;
+		}
+		for ($k = 0; $k < count($plantillaBuscada);$k++) {
+		    $enlace = false;
+		    $indice = 0;
 		    $cont = 2;
-		}else{
-		    $cont = 0;
-			echo "\033[1;31m Plantilla $plantilla no encontrada en la página $pagina \033[0m\r\n";
-			return;
-		}
-		$enlace = false;
-		$plantillaCapturada1 = array();
-		
-		do{
-		  if($contenidoPagina[$indice] == "{") {
-		      $cont++;
-		  } elseif($contenidoPagina[$indice] == "}") {
-		      $cont--;
-		  } elseif($contenidoPagina[$indice] == "[") {
-		      $enlace = true;
-		  } elseif($contenidoPagina[$indice] == "]") {
-		      $enlace = false;
-		  }
-          if((($cont <= 1)||($enlace)) && ($contenidoPagina[$indice] == "}")){
-		      $plantillaCapturada1[$indice] = "";
-		  } elseif((($cont >= 3)||($enlace)) && ($contenidoPagina[$indice] == "|")){
-		      $plantillaCapturada1[$indice] = "&@"; 
-		  } else {
-		      $plantillaCapturada1[$indice] = $contenidoPagina[$indice];
-		  }
-		  $indice++;
-		} while($cont != 0);
-		
-		$plantillaCapturada = implode($plantillaCapturada1);
-		$parametros = explode('|',$plantillaCapturada);
-		//print_r($parametros);
-		$cont = 1;
-		for($k=0; $k < count($parametros); $k++){
-		    if (strstr($parametros[$k],"=") !== false){
-		        $partes = explode("=",$parametros[$k]);
-		        $clave = trim($partes[0]);
-		        $valor = str_replace("&@","|",trim($partes[1]));
-			} else {
-			   $clave = $cont;
-			   $valor = $parametros[$k];
-			   $cont++;
+		    $contenidoPagina = preg_replace("/\{\{\s*".$plantilla."\s*\|?\s*(.*)/is","$1",$plantillaBuscada[$k]); 
+			
+			do{
+			  /*if (!$contenidoPagina[$indice]) {
+					    echo " Códigos de cierre erróneos en ".$indice." - cont: ".$cont." - ult car ".$contenidoPagina[$indice]."\r\n";
+					    return false;
+			  } else*/
+			  if($contenidoPagina[$indice] == "{") {
+				  $cont++;
+			  } elseif($contenidoPagina[$indice] == "}") {
+				  $cont--;
+			  } elseif($contenidoPagina[$indice] == "[") {
+				  $enlace = true;
+			  } elseif($contenidoPagina[$indice] == "]") {
+				  $enlace = false;
+			  }
+			  if(($cont <= 1) && ($contenidoPagina[$indice] == "}")){
+				  $plantillaCapturada[$indice] = "";
+			  } elseif((($cont >= 3)||($enlace)) && ($contenidoPagina[$indice] == "|")){
+				  $plantillaCapturada[$indice] = "&@"; 
+			  } else {
+				  $plantillaCapturada[$indice] = $contenidoPagina[$indice];
+			  }
+			  $indice++;
+			} while(($cont != 0)&&($indice < strlen($contenidoPagina)));
+			
+			$plantillaCapturada1 = implode($plantillaCapturada);
+			unset($plantillaCapturada);
+		    $parametros = explode('|',$plantillaCapturada1);
+			//print_r ($parametros);
+			$cont = 1;
+			for($ki=0; $ki < count($parametros); $ki++){
+				if (strstr($parametros[$ki],"=") !== false){ 
+				//Parámetros con nombre
+					$partes = explode("=",$parametros[$ki],2);
+					$clave = trim($partes[0]);
+					$valor = str_replace("&@","|",trim($partes[1]));
+				} else { 
+				// Parámetros ordinales
+				   $clave = $cont;
+				   $valor = str_replace("&@","|",trim($parametros[$ki]));
+				   $cont++;
+				}
+				if (($valor != "") || (!$limpiar)){
+					$arrayPlantilla[$clave] = $valor;
+				}
 			}
-			if ($valor != ""){
-		        $arrayPlantilla[$clave] = $valor;
-			}
+			$arrayDevuelto[$k] = $arrayPlantilla;
+			unset($arrayPlantilla);
+			unset($plantillaCapturada1);
 		}
-		print_r($arrayPlantilla);
-		//return $arrayPlantilla;
-    }
+		//print_r($arrayDevuelto);
+		return $arrayDevuelto;
+	}	
+
 }
 ?>
