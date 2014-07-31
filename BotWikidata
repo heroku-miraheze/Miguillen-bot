@@ -56,11 +56,9 @@ class BotWData {
 		$token = $array_["query"]["pages"][key($array_["query"]["pages"])]["edittoken"];
 		
 		if($array_["query"]["pages"][key($array_["query"]["pages"])]["contentmodel"]== "wikibase-item") { // Comprobamos que existe el artículo
-		    //echo "\r\n Página {$pagID} encontrada. Token: {$token} \r\n";
 		} else {
 		    echo "\r\n Página no encontrada \r\n";
 		}
-		//var_dump($array_);
 		
 		return $token;	//Nos devuelve el token de la edición
 	}
@@ -72,7 +70,6 @@ class BotWData {
 	    $request_vars = array('sites' => 'eswiki','titles' => $titulo,'props' => 'info', 'maxlag' => '5','format' => 'php');
 	    $this->snoopy->submit("http://www.wikidata.org/w/api.php?action=wbgetentities",$request_vars);
 	    $datos = unserialize($this->snoopy->results);
-	    //var_dump($datos);
 		$id = $datos["entities"][key($datos["entities"])]["title"];
 		return $id;
 	}
@@ -96,11 +93,13 @@ class BotWData {
 	$request_vars = array( 'entity'=> $pagID, 'property' => $propiedad,'maxlag' => '5','format' => 'php');
 	    $this->snoopy->submit("http://www.wikidata.org/w/api.php?action=wbgetclaims",$request_vars);
 		$array_ = unserialize($this->snoopy->results);
-		//var_dump($array_); //Imprimimos los valores
+		if (!array_key_exists($propiedad,$array_["claims"])){
+		    return false;
+		}
 		if($array_["claims"][$propiedad][0]["mainsnak"]["property"] == $propiedad){
-		return true;
+		    return true;
 		} else {
-		return false;
+		    return false;
 		}
 	}
 	
@@ -117,7 +116,6 @@ class BotWData {
         $this->snoopy->submit("http://www.wikidata.org/w/api.php?action=wbsetreference",$request_vars);
         
 		$array_ = unserialize($this->snoopy->results); //Creamos array con los valores de la edición
-		//var_dump($array_); //Imprimimos los valores
 		
 		//   -- Comprobamos que la edición se ha realizado --
 		
@@ -135,7 +133,7 @@ class BotWData {
 	*************************************************************************************************************************/	
 	public function addClain($pagID, $propiedad, $valor){
 	    $token = $this->getToken($pagID); // Obtenemos el token de edición del elemento
-        echo $token;
+        //echo $token;
 	    $request_vars = array(
 		    'entity' => $pagID, 'property' => $propiedad,'token'=> $token, 'snaktype' => 'value','value' => $valor,'maxlag' => '5', 'format' => 'php'
 		);
@@ -150,9 +148,11 @@ class BotWData {
 		//   -- Comprobamos que la edición se ha realizado --
 		
         if($datos["success"] == 1) {
-	        echo "\033[1;32m Creada propiedad coordenadas (p625) \033[0m\r\n";	
+	        echo "\033[1;32m Creada propiedad {$propiedad} en {$pagID} \033[0m\r\n";	
+			return true;
         } else {
-	        echo "\033[1;31m Error al crear la propiedad coordenadas (p625)\033[0m\r\n";			
+	        echo "\033[1;31m Error al crear la propiedad {$propiedad} en {$pageID} \033[0m\r\n";
+            return false;			
         }
 	}
 	/************************************************************************************************************************
@@ -190,13 +190,14 @@ class BotWData {
 	public function addEntidad($pagina){
 	    $token = $this->getToken("new_item"); // Obtenemos el token de edición del elemento
         //echo $token;
-		$etiqueta = $pagina;
+		$etiqueta = preg_replace("/\(.*?\)/","",$pagina);//etiqueta enlace de la página sin el contenido entre paréntesis
 		$etiquetas = array('es'=> array('language'=>'es', 'value'=> $etiqueta),'en'=> array('language'=>'en', 'value'=> $etiqueta));
-		$valores = array('labels'=>$etiquetas, 'sitelinks' => array('eswiki'=> array('site'=> 'eswiki','title'=> $pagina)));
-		//$valores = '{"labels":{"es":{"language":"es","value":'.$etiqueta.'},"en":{"language":"en","value":'.$etiqueta.'}}}';
-		//,{"sitelinks":{"eswiki":{"site":"eswiki","title":'.$pagina.'}}}';
+		//$propiedades = array({"entity-type":"item","numeric-id":1});
+		$enlaces = array('eswiki'=> array('site'=> 'eswiki','title'=> $pagina));
+		$valores = array('labels'=>$etiquetas, 'sitelinks' => $enlaces);
+
 		$valoresJson = json_encode($valores);
-		//echo $valoresJson;
+
 	    $request_vars = array(
 		    'new' => 'item', 'data' => $valoresJson,'token'=> $token,'maxlag' => '5', 'format' => 'php'
 		);
@@ -209,10 +210,13 @@ class BotWData {
 		
         if($datos["success"] == 1) {
 	        echo "\033[1;32m Elemento creado \033[0m\r\n";	
+			return true;
         } else {
-	        echo "\033[1;31m Error al crear elemento\033[0m\r\n";			
+	        echo "\033[1;31m Error al crear elemento\033[0m\r\n";
+            return false;			
         }
 	}
 }
 
 ?>
+	
