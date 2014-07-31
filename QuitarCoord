@@ -18,8 +18,8 @@ $finColor = "\033[0m";
     =========================================================*/
 	
 	/*== Valores login bot == */
-$usuario = "Miguillen-bot"; // Nombre del bot
-$contrasenna = "miguel"; // Contraseña que usa el bot para iniciar sesión en es:Wikipedia
+$usuario = ""; // Nombre del bot
+$contrasenna = ""; // Contraseña que usa el bot para iniciar sesión en es:Wikipedia
 $comentario = "Bot: Retirando coordenadas trasladadas a Wikidata";
 
     /* == Programa == */
