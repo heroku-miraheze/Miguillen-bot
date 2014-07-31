@@ -1,0 +1,180 @@
+#! /usr/bin/php -q
+<?php
+require_once ("BotWData.php");
+require_once ("Botwiki.php");
+/*  =======================================================
+                 Datos para el login
+    =========================================================*/
+$user = "<USUARIO>";
+$password = "<CONTRASEÑA>";
+/*  =======================================================
+                 Datos tarea
+    =========================================================*/
+$categoria = "Wikipedia:Artículos con la ficha de montaña por trasladar coordenadas a Wikidata";
+
+/*  =======================================================
+                 Colores texto
+    =========================================================*/
+$colorVerde = "\033[1;32m";
+$colorRojo = "\033[1;31m";
+$colorBlancoB = "\033[1;37m";
+$colorTurquesa = "\033[1;36m";
+$colorRosa = "\033[1;35m";
+$colorMagenta = "\033[0;35m";
+$colorAmarillo = "\033[1;33m";
+$finColor = "\033[0m";
+
+/*  =======================================================
+                 Archivos externos
+    =========================================================*/
+$base = "/data/project/mg-bot";
+/*  =======================================================
+                 Objetos
+    =========================================================*/
+$botWdata = new BotWData;
+$botWiki = new Botwiki;
+//$lista = $botWiki->listCat($categoria);
+$todosCrear = false; // Variable que establece si hace cambios en todas las páginas
+$todos = false; // Variable que establece si hace cambios en todas las páginas
+$siguiente = true; 
+$contadorLista = 1;
+$contadorNo = 0;
+$contadorSi = 0;
+$contadorError = 0;
+$cont = "";
+//$crear = "n";
+
+/*  =======================================================
+                 Programa
+    =========================================================*/
+//system("clear"); //Limpiamos pantalla
+$botWiki->login($user,$password);
+$botWdata->login($user,$password);
+
+do {
+    $lista = $botWiki->listCat($categoria,$cont);
+    $contenidoLista = count($lista)-1;
+    echo " ".$colorBlancoB.$contadorLista.") Cargados ". $contenidoLista. " páginas que contienen la [[Categoría:".$categoria."]]".$finColor."\r\n";
+	$cont = $lista['cont'];
+	$contadorLista++;
+    unset($lista['cont']);	//Quitamos el elemento con el código de continuar para que no entorpezca 
+	for($k = 0; $k < count($lista); $k++){
+	    $totalEdiciones = $contadorSi + $contadorNo + $contadorError;
+        $estadistica = $colorBlancoB." Estadítica: ".$finColor."Cambios: ".$colorVerde.$contadorSi.$finColor." - Omitidos: ".$colorAmarillo.$contadorNo.$finColor." - Erróres: ".$colorRojo.$contadorError.$finColor." - Total:  ".$colorBlancoB.$totalEdiciones.$finColor."\r\n";
+	    $pagina = false;
+	    while (!$pagina){
+		    $paginaEncontrada = $botWiki->getArticulo($lista[$k]);
+		    $pagina = $paginaEncontrada["query"]["pages"][key($paginaEncontrada["query"]["pages"])]["title"];
+		}
+		echo "\r\n" .$colorRosa." >>>".$colorBlancoB." ".$pagina." ".$colorRosa."<<<".$finColor."\r\n\r\n";
+
+		$id = $botWdata->getID($pagina);
+		if (preg_match("/Q\d+/",$id)== 1){
+		   echo $colorVerde." Tiene elemento en Wikidata.".$finColor."\r\n Id de la página: ".$colorBlancoB.$id.$finColor."\r\n";
+		} else  {
+		    do {
+			    if (!$todosCrear) {
+				    echo $colorRojo." No tiene elemento en Wikidata ".$finColor.$colorBlancoB."¿Crear? ".$finColor."(".$colorTurquesa."[S]".$finColor."í, ".$colorTurquesa."[N]".$finColor."o, ".$colorTurquesa."[T]".$finColor."odos, ".$colorTurquesa."[C]".$finColor."errar): ";
+				    $crear = trim(fgets(STDIN));
+					}
+				
+					if (($crear == "s")||($crear == "t")||($todosCrear)){
+						$botWdata->addEntidad($pagina);
+						$id = $botWdata->getID($pagina);
+
+						$teclaNo = false;
+						echo $colorBlancoB." Creando elemento en Wikidata".$finColor."\r\n";
+						if ($crear == "t"){	
+							$todosCrear = true;	
+						}
+					} elseif ($crear == "n"){
+						echo $colorBlancoB." Cancelada creación de elemento en Wikidata".$finColor."\r\n";
+						$teclaNo = false;
+						$contadorNo++;
+						continue;
+						
+					} elseif ($crear == "c"){
+						$contadorNo++;
+						echo $colorBlancoB." Cancelada creación de elemento en Wikidata".$finColor."\r\n";
+						echo $estadistica;
+						echo $colorBlancoB." Cerrando programa".$finColor."\r\n";
+						return;
+					}else {
+						echo $colorRojo." Tecla no válida".$finColor."\r\n"; 
+						$teclaNo = true;
+					}
+				} while($teclaNo);
+			    if ($crear == "n"){
+					continue;
+		        }
+			} 
+			unset($crear);
+		$existe = $botWdata->isClain($id,'P625');
+		$instancia = $botWdata->isClain($id,'P31');
+		if ($existe) {
+			echo $colorRojo." Ya existe la propiedad coordenadas (p625)".$finColor."\r\n";
+			$contadorNo++;
+			continue;		
+		} else {
+			echo $colorVerde." La propiedad coordenadas (p625) está libre.".$finColor."\r\n";
+		}
+		$coord = $botWiki->getCoord($pagina);
+		$latitud = $coord['lat'];
+		$longitud = $coord['lon'];
+		if (($latitud != "")&&($longitud != "")){ 
+			echo " * latitud:{$colorBlancoB} {$latitud} {$finColor}\r\n";
+			echo " * longitud:{$colorBlancoB} {$longitud} {$finColor}\r\n";
+		} else {
+			echo "{$colorRojo} La página no tiene coordenadas en título{$finColor}\r\n";
+			$contadorNo++;
+			continue;
+		}
+		
+		do {
+		    if (!$todos) {
+		        echo $colorBlancoB."\r\n ¿Desea crear la declaración?".$finColor."(".$colorTurquesa."[S]".$finColor."í, ".$colorTurquesa."[N]".$finColor."o, ".$colorTurquesa."[T]".$finColor."odos, ".$colorTurquesa."[C]".$finColor."errar): ";
+		    }
+		    $confirmacion = trim(fgets(STDIN)); // Esperamos respuesta del teclado
+			
+			if (($confirmacion == "s") || ($confirmacion == "t") || ($todos) ){
+				if (!$instancia){
+				echo $colorBlancoB." Creando la declaración instancia de (p31) en elemento ".$pagina." (".$id.")".$finColor."\r\n";
+				    $instCreada = $botWdata->addClain($id,"P31",'{"entity-type":"item","numeric-id":8502}');
+				}
+				echo $colorBlancoB." Creando la declaración coordenadas (p625) en elemento ".$pagina." (".$id.")".$finColor."\r\n";
+				
+				$hecho = $botWdata->addClain(
+					$id,"P625",'{"latitude":'.$latitud.',"longitude":'.$longitud.',"globe":"http://www.wikidata.org/entity/Q2","precision":0.000001}'
+				);
+
+				if ($confirmacion == "t"){
+					$todos = true;
+				}
+				$teclaNo = false;
+				if ($hecho)	{
+			    $contadorSi++;
+                } else {
+			        $contadorError++;
+                }
+			} else if ($confirmacion == "n") { 
+				echo $colorBlancoB." Cancelada creación de declaración".$finColor."\r\n";
+				$contadorNo++;
+				$teclaNo = false;
+			} else if ($confirmacion == "c"){
+			    $contadorNo++;
+				echo $colorBlancoB." Cancelada creación de declaración".$finColor."\r\n";
+				echo $estadistica;
+				echo $colorBlancoB." Terminando programa".$finColor."\r\n";
+				return;
+			} else {
+				echo $colorRojo." Tecla no válida".$finColor."\r\n";
+				$teclaNo = true;
+			}
+			
+		} while($teclaNo);
+		//sleep(60);
+		echo $estadistica;
+	}
+} while ($cont);
+echo " ".$colorBlancoB."Terminado programa\r\n".$finColor."\r\n";
+    
