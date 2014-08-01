@@ -23,7 +23,7 @@ $contrasenna = "<CONTRASEÑA>"; // Contraseña que usa el bot para iniciar sesi�
 $comentario = "Bot: Retirando coordenadas trasladadas a Wikidata";
 
     /* == Programa == */
-$plantilla = "Ficha de localidad"; //Plantilla que va a buscar en la páginas de es:wikipedia para modificar
+$plantilla = "Ficha de entidad subnacional"; //Plantilla que va a buscar en la páginas de es:wikipedia para modificar
 $categoria = "Wikipedia:Artículos con coordenadas locales";
 //$archivo = ;
 $pagina = "Usuario:Miguillen/Población";
@@ -88,25 +88,20 @@ do {
 		    $contadorError++;
 		    continue;
 		}
-		/* == Parámetros que eliminamos de la plantilla == */
-		unset($arrayFicha['coor']);
-		unset($arrayFicha['coord']);
-		unset($arrayFicha['coordenadas']);
-		unset($arrayFicha['lat']);
-		unset($arrayFicha['long']);
-		unset($arrayFicha['lon']);
-		unset($arrayFicha['latd']);
-		unset($arrayFicha['latm']);
-		unset($arrayFicha['lats']);
-		unset($arrayFicha['latNS']);
-		unset($arrayFicha['longd']);
-		unset($arrayFicha['longm']);
-		unset($arrayFicha['longs']);
-		unset($arrayFicha['longEW']);
-		unset($arrayFicha['lond']);
-		unset($arrayFicha['lonm']);
-		unset($arrayFicha['lons']);
-		unset($arrayFicha['lonEW']);
+		/* == detecta cambios y elimina parámetros de la plantilla == */
+		
+		$parametrosQuitar = array (
+		    'coor','coord','coordenadas','lat','long','lon','latd','latm','lats','latNS','longd',
+			'longm','longs','longEW','lond','lonm','lons','lonEW'
+		 );
+		$hayCambios = false; 
+        for ($in = 0; $in < count($parametrosQuitar); $in++) {
+		    if (array_key_exists($parametrosQuitar[$in],$arrayFicha)){
+		        $hayCambios = true;
+		        unset($arrayFicha[$parametrosQuitar[$in]]);
+		    }
+		}
+		
 		/*===================================================*/
 		
 		/*== Reconstruimos la plantilla a partir del array == */
@@ -131,16 +126,21 @@ do {
         /*== Quitamos si encuetra una plantilla coord con display = title == */
 		//print_r($arrayCoord);
         for ($ki = 0; $ki < count($arrayCoord); $ki++) {
+		    if (!$arrayCoord){
+			    continue;
+			}
 		    if (!array_key_exists("display",$arrayCoord[$ki])){
 			    continue;
 			}
 			if ($arrayCoord[$ki]["display"] == "title"){
                 echo "encontrado".$stringCoord[$ki]."\r\n";
+				$hayCambios = true;
                 				
 				$resultadoPagina = str_replace($stringCoord[$ki],"",$resultadoPagina);
 			} elseif ($arrayCoord[$ki]["display"] == "inline,title"){
 				$arrayCoord[$ki]["display"] = "inline";
 				$indice = 0;
+				$hayCambios = true;
 				unset($parametros);
 				unset($linea);
 				foreach ($arrayCoord[$ki] as $clave => $valor) { 
@@ -159,7 +159,7 @@ do {
 		
 		$dif = $botwiki->getCambio($resultadoPagina, $lista[$k]);
 		
-		if ($dif != ""){
+		if (($hayCambios === true) && ($dif != "")){
 		    //system("clear"); //Limpiamos pantalla
 			echo "\r\n" .$colorRosa.">>>".$colorBlancoB." ".$tituloPagina." ".$colorRosa."<<<".$finColor."\r\n\r\n";
 			echo $dif."\r\n";
@@ -196,15 +196,18 @@ do {
 			    $contadorError++;
             }			
 		} else {
-			echo $colorAmarillo." No hay cambios necesarios en [[".$lista[$k].$finColor."]]\r\n";
+			echo $colorAmarillo." No hay cambios necesarios en [[".$lista[$k]."]]".$finColor."\r\n";
             $contadorNo++;			
 		}
+		unset($hayCambios);
 		unset($arrayFicha);
 		unset($linea);
 		unset($arrayCoord);
+		$totalEdiciones = $contadorSi + $contadorNo + $contadorError;
+		echo $colorBlancoB." Estadítica: ".$finColor."Cambios: ".$colorVerde.$contadorSi.$finColor." - Omitidos: ".$colorAmarillo.$contadorNo.$finColor." - Erróres: ".$colorRojo.$contadorError.$finColor." - Total:  ".$colorBlancoB.$totalEdiciones.$finColor."\r\n";
 	}
 	
-	$totalEdiciones = $contadorSi + $contadorNo + $contadorError;
-	echo $colorBlancoB." Estadítica: ".$finColor."Cambios: ".$colorVerde.$contadorSi.$finColor." - Omitidos: ".$colorAmarillo.$contadorNo.$finColor." - Erróres: ".$colorRojo.$contadorError.$finColor." - Total:  ".$colorBlancoB.$totalEdiciones.$finColor."\r\n";
+	//$totalEdiciones = $contadorSi + $contadorNo + $contadorError;
+	
 } while ($cont);
 echo " ".$colorBlancoB."Terminado programa\r\n".$finColor."\r\n";
