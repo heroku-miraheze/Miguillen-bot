@@ -257,7 +257,7 @@ public $finColor = "\033[0m";
 		esto evita que se caiga en caso contrario en un bucle infinito -- */
 		if (!preg_match("/\{\{\s*".$plantilla.".*/is",$contenidoPagina)== 1){ 		
 
-			echo "\033[1;31m Plantilla $plantilla no encontrada en la página $pagina \033[0m\r\n";
+			//echo "\033[1;31m Plantilla $plantilla no encontrada en la página $pagina \033[0m\r\n";
 			return false;
 			
 		}
