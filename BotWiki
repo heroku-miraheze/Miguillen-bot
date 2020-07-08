@@ -15,7 +15,7 @@ public $colorRosa = "\033[1;35m";
 public $colorMagenta = "\033[0;35m";
 public $colorAmarillo = "\033[1;33m";
 public $finColor = "\033[0m";
-public $usuario = "Miguillen-bot";
+public $usuario = "Miguillen-botv2";
 public $contrasenna = "jander01";
 
 	/************************************************************************************************************************
